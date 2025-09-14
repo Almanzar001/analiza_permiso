@@ -1,0 +1,36 @@
+{
+  "name": "Analiza Permiso - Análisis de Permisos Ambientales",
+  "short_name": "AnalizaPermiso",
+  "description": "Aplicación PWA para análisis automático de permisos ambientales mediante IA",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "es-ES",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Nuevo Análisis",
+      "short_name": "Análisis",
+      "description": "Iniciar nuevo análisis de permiso",
+      "url": "/",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}
