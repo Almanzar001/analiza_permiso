@@ -179,4 +179,4 @@ Si encuentras algún problema o tienes preguntas:
 
 <div align="center">
   <p>🌿 <strong>Hecho con ❤️ para el medio ambiente de República Dominicana</strong> 🇩🇴</p>
-</div>
+</div># Force redeploy Sun Sep 14 17:11:37 AST 2025
