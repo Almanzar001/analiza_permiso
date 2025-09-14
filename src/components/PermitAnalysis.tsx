@@ -241,22 +241,13 @@ const PermitAnalysis = ({ result, onNewAnalysis }: PermitAnalysisProps) => {
           )}
         </div>
 
-        <div className="bg-gray-50 px-6 py-4 flex justify-between items-center">
+        <div className="bg-gray-50 px-6 py-4 flex justify-center">
           <button
             onClick={onNewAnalysis}
             className="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-medium transition-colors"
           >
             Nuevo Análisis
           </button>
-          
-          <div className="flex space-x-3">
-            <button className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
-              Copiar Coordenadas
-            </button>
-            <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm transition-colors">
-              Exportar KML
-            </button>
-          </div>
         </div>
       </div>
     </div>
