@@ -7,8 +7,5 @@
       "source": "/(.*)",
       "destination": "/index.html"
     }
-  ],
-  "env": {
-    "VITE_OPENROUTER_API_KEY": "@vite_openrouter_api_key"
-  }
+  ]
 }
