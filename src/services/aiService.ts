@@ -12,6 +12,15 @@ interface PermitAnalysisResponse {
   }
 }
 
+interface PolygonAnalysisResponse {
+  polygon_points: Array<{ x: number; y: number; zone: string; label?: string }>
+  permit_info: {
+    permit_number: string
+    permit_type: string
+    authority: string
+  }
+}
+
 interface ModelOption {
   id: string
   name: string
@@ -855,6 +864,254 @@ IMPORTANTE:
       ]
     }
   }
+
+  async analyzePolygonDocument(file: File, selectedModel = 'meta-llama/llama-3.2-90b-vision-instruct'): Promise<PolygonAnalysisResponse> {
+    if (!this.apiKey) {
+      throw new Error('OpenRouter API key not configured')
+    }
+
+    let content: any
+    
+    try {
+      if (file.type === 'application/pdf') {
+        content = await this.extractPDFText(file)
+      } else {
+        content = await this.extractImageContent(file)
+      }
+    } catch (error) {
+      console.error('Error extracting content:', error)
+      throw new Error('Error extracting content from file')
+    }
+
+    const messages = this.createPolygonAnalysisMessages(content, file.type)
+
+    console.log('🚀 Enviando request para análisis de polígono a OpenRouter...')
+    console.log('Model:', selectedModel)
+    console.log('API Key presente:', !!this.apiKey)
+    
+    try {
+      const requestBody = {
+        model: selectedModel,
+        messages,
+        temperature: 0.1,
+        max_tokens: 1500,
+        top_p: 1,
+        frequency_penalty: 0,
+        presence_penalty: 0
+      }
+      
+      console.log('Request body (polígono):', JSON.stringify(requestBody, null, 2))
+      
+      const response = await fetch(`${this.baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${this.apiKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Analiza Permiso App'
+        },
+        body: JSON.stringify(requestBody)
+      })
+      
+      console.log('Response status (polígono):', response.status)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('OpenRouter error response (polígono):', errorText)
+        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
+      console.log('Full OpenRouter response (polígono):', data)
+      
+      const result = data.choices?.[0]?.message?.content
+
+      if (!result) {
+        console.error('No content in response. Full data:', data)
+        throw new Error('No response from AI service')
+      }
+
+      console.log('AI Raw Response (polígono):', result)
+
+      try {
+        // Clean the response - remove markdown formatting if present
+        let cleanResult = result.trim()
+        
+        if (cleanResult.startsWith('```json')) {
+          cleanResult = cleanResult.replace(/^```json\s*/, '').replace(/\s*```$/, '')
+        } else if (cleanResult.startsWith('```')) {
+          cleanResult = cleanResult.replace(/^```\s*/, '').replace(/\s*```$/, '')
+        }
+        
+        console.log('Cleaned result (polígono):', cleanResult)
+        
+        const parsedResult = JSON.parse(cleanResult) as PolygonAnalysisResponse
+        
+        // Validate that polygon points were found
+        if (!parsedResult.polygon_points || parsedResult.polygon_points.length < 3) {
+          console.warn('⚠️ No se encontraron suficientes puntos para crear un polígono')
+          throw new Error('No se encontraron suficientes coordenadas para crear un polígono (mínimo 3 puntos). Verifica que el documento contenga múltiples coordenadas UTM de los vértices del área.')
+        }
+        
+        console.log('AI Parsed Result (polígono):', parsedResult)
+        
+        // Log específico para puntos del polígono
+        console.log('🗺️ PUNTOS DEL POLÍGONO DETECTADOS POR IA:')
+        parsedResult.polygon_points.forEach((point, index) => {
+          console.log(`  - Punto ${index + 1}: X=${point.x}, Y=${point.y}, Zona=${point.zone}, Label=${point.label}`)
+        })
+        
+        return parsedResult
+      } catch (parseError) {
+        console.error('JSON Parse Error (polígono):', parseError)
+        console.error('Raw result that failed to parse:', result)
+        
+        // Check if the AI response indicates it couldn't read the document
+        if (result.toLowerCase().includes('no puedo leer') || 
+            result.toLowerCase().includes('no se puede leer') ||
+            result.toLowerCase().includes('imagen no clara') ||
+            result.toLowerCase().includes('documento ilegible')) {
+          throw new Error('El documento no se puede leer claramente. Verifica que la imagen sea nítida, bien iluminada y que el texto sea legible.')
+        }
+        
+        throw new Error('La IA no pudo procesar las coordenadas del polígono correctamente. Verifica que sea un permiso ambiental válido con múltiples coordenadas UTM visibles.')
+      }
+    } catch (error) {
+      console.error('Error calling OpenRouter (polígono):', error)
+      throw new Error('Error analyzing polygon document with AI')
+    }
+  }
+
+  private createPolygonAnalysisMessages(content: string, fileType: string): any[] {
+    const systemPrompt = `Eres un EXPERTO EN CARTOGRAFÍA especializado en extraer MÚLTIPLES COORDENADAS para crear POLÍGONOS de documentos oficiales de República Dominicana.
+
+🎯 **TU ÚNICA MISIÓN: ENCONTRAR TODOS LOS PUNTOS DE COORDENADAS PARA CREAR UN POLÍGONO**
+
+BUSCA ESPECÍFICAMENTE:
+
+📍 **MÚLTIPLES COORDENADAS UTM (PRIORIDAD MÁXIMA):**
+- Busca TABLAS con múltiples filas de coordenadas X e Y
+- Busca secciones como "VÉRTICES DEL POLÍGONO", "COORDENADAS DEL ÁREA", "PUNTOS LÍMITE"
+- Busca patrones como:
+  * PUNTO 1: X: 530478, Y: 2042873
+  * PUNTO 2: X: 530650, Y: 2042871  
+  * PUNTO 3: X: 530890, Y: 2043100
+  * PUNTO 4: X: 530720, Y: 2043250
+- NECESITAS MÍNIMO 3 PUNTOS para formar un polígono
+- BUSCA HASTA 20 PUNTOS si están disponibles
+
+📍 **PATRONES COMUNES EN DOCUMENTOS:**
+- Tabla de "Coordenadas de los vértices"
+- Lista numerada: "Punto 1, Punto 2, Punto 3..."
+- Sección "Delimitación del área"
+- "Coordenadas UTM de la parcela"
+- "Límites del proyecto"
+
+📍 **FORMATO DE COORDENADAS:**
+- X (ESTE): números de 6-7 dígitos (300000-800000)
+- Y (NORTE): números de 6-7 dígitos (1900000-2200000)  
+- Zona UTM: típicamente "19Q", "19N", "20N" para República Dominicana
+
+🔍 **ESTRATEGIA DE BÚSQUEDA:**
+1. **BUSCA** secciones con títulos como "coordenadas", "vértices", "polígono", "límites"
+2. **IDENTIFICA** tablas o listas con múltiples puntos
+3. **EXTRAE** TODOS los puntos disponibles en orden
+4. **ASIGNA** etiquetas: "Vértice 1", "Vértice 2", etc.
+5. **VERIFICA** que estén en rangos válidos para República Dominicana
+
+⚠️ **CRÍTICO:**
+- Copia los números EXACTAMENTE como aparecen
+- NO redondees ni aproximes
+- Mantén el ORDEN de los puntos como aparecen
+- Si solo encuentras 1-2 puntos, NO es suficiente para polígono
+- Asigna zona UTM apropiada si no está especificada
+
+🗺️ **EJEMPLOS DE PATRONES A BUSCAR:**
+
+\`\`\`
+COORDENADAS DE LOS VÉRTICES:
+Punto 1: X=530478, Y=2042873
+Punto 2: X=530650, Y=2042871  
+Punto 3: X=530890, Y=2043100
+Punto 4: X=530720, Y=2043250
+\`\`\`
+
+\`\`\`
+| Vértice | X (Este) | Y (Norte) |
+|---------|----------|-----------|
+| V1      | 530478   | 2042873   |
+| V2      | 530650   | 2042871   |
+| V3      | 530890   | 2043100   |
+\`\`\`
+
+RESPONDE SOLO CON JSON (sin explicaciones):
+{
+  "polygon_points": [
+    { "x": 530478, "y": 2042873, "zone": "19Q", "label": "Vértice 1" },
+    { "x": 530650, "y": 2042871, "zone": "19Q", "label": "Vértice 2" },
+    { "x": 530890, "y": 2043100, "zone": "19Q", "label": "Vértice 3" },
+    { "x": 530720, "y": 2043250, "zone": "19Q", "label": "Vértice 4" }
+  ],
+  "permit_info": {
+    "permit_number": "342-2025",
+    "permit_type": "Autorización Ambiental",
+    "authority": "MARENA"
+  }
+}
+
+IMPORTANTE: 
+- Números directos SIN corchetes: "x": 530478
+- Strings SIN corchetes: "zone": "19Q"
+- Mínimo 3 puntos para crear polígono válido
+- Máximo 20 puntos por polígono`
+
+    if (fileType === 'application/pdf') {
+      return [
+        { role: 'system', content: systemPrompt },
+        { 
+          role: 'user', 
+          content: `Analiza este documento PDF de permiso ambiental y extrae TODAS las coordenadas de los vértices del polígono (en base64): ${content}` 
+        }
+      ]
+    } else {
+      return [
+        { role: 'system', content: systemPrompt },
+        { 
+          role: 'user', 
+          content: [
+            {
+              type: 'text',
+              text: 'Analiza esta imagen de permiso ambiental y extrae TODAS las coordenadas de los vértices para crear el polígono:'
+            },
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${fileType};base64,${content}`,
+                detail: 'high'
+              }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+
+// Add interface for date analysis
+interface DateAnalysisResponse {
+  date_info: {
+    emission_date: string | null
+    authorized_days: number | null
+    expiration_date: string | null
+    days_remaining: number | null
+    is_expired: boolean
+    status: 'valid' | 'expired' | 'unknown'
+  }
+  permit_info: {
+    permit_number: string
+    permit_type: string
+    authority: string
+  }
 }
 
 // Add interface for date analysis
@@ -875,4 +1132,4 @@ interface DateAnalysisResponse {
 }
 
 export default AIService
-export type { PermitAnalysisResponse, ModelOption, DateAnalysisResponse }
+export type { PermitAnalysisResponse, ModelOption, DateAnalysisResponse, PolygonAnalysisResponse }

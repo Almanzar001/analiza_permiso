@@ -45,3 +45,16 @@ export interface DateAnalysisResult {
   date_info: DateInfo
   permit_info: PermitInfo
 }
+
+export interface PolygonPoint {
+  x: number
+  y: number
+  zone: string
+  label?: string
+}
+
+export interface PolygonData {
+  points: PolygonPoint[]
+  center?: GeographicCoordinates
+  area?: number
+}

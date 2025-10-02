@@ -2,15 +2,18 @@ import { useState } from 'react'
 import FileUpload from './components/FileUpload'
 import PermitAnalysis from './components/PermitAnalysis'
 import DateAnalysis from './components/DateAnalysis'
+import PolygonCreator from './components/PolygonCreator'
+import PolygonMapView from './components/PolygonMapView'
 import AIService from './services/aiService'
 import CoordinateUtils from './utils/coordinateUtils'
-import type { AnalysisResult, DateAnalysisResult } from './types'
+import type { AnalysisResult, DateAnalysisResult, PolygonData } from './types'
 
-type AnalysisType = 'location' | 'dates'
+type AnalysisType = 'location' | 'dates' | 'polygon'
 
 function App() {
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null)
   const [dateAnalysisResult, setDateAnalysisResult] = useState<DateAnalysisResult | null>(null)
+  const [polygonData, setPolygonData] = useState<PolygonData | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisType, setAnalysisType] = useState<AnalysisType>('location')
   const selectedModel = 'meta-llama/llama-3.2-90b-vision-instruct'
@@ -177,9 +180,18 @@ function App() {
     }
   }
 
+  const handlePolygonCreate = (data: PolygonData) => {
+    setPolygonData(data)
+  }
+
+  const handleNewPolygon = () => {
+    setPolygonData(null)
+  }
+
   const handleNewAnalysis = () => {
     setAnalysisResult(null)
     setDateAnalysisResult(null)
+    setPolygonData(null)
   }
 
   return (
@@ -196,10 +208,10 @@ function App() {
 
         {/* Navigation Tabs */}
         <div className="flex justify-center mb-8">
-          <div className="bg-white rounded-lg shadow-sm p-1 flex">
+          <div className="bg-white rounded-lg shadow-sm p-1 flex flex-wrap">
             <button
               onClick={() => setAnalysisType('location')}
-              className={`px-6 py-3 rounded-md font-medium transition-colors ${
+              className={`px-4 py-3 rounded-md font-medium transition-colors ${
                 analysisType === 'location'
                   ? 'bg-green-500 text-white'
                   : 'text-gray-600 hover:text-gray-800'
@@ -209,13 +221,23 @@ function App() {
             </button>
             <button
               onClick={() => setAnalysisType('dates')}
-              className={`px-6 py-3 rounded-md font-medium transition-colors ${
+              className={`px-4 py-3 rounded-md font-medium transition-colors ${
                 analysisType === 'dates'
                   ? 'bg-green-500 text-white'
                   : 'text-gray-600 hover:text-gray-800'
               }`}
             >
               📅 Análisis de Fechas
+            </button>
+            <button
+              onClick={() => setAnalysisType('polygon')}
+              className={`px-4 py-3 rounded-md font-medium transition-colors ${
+                analysisType === 'polygon'
+                  ? 'bg-green-500 text-white'
+                  : 'text-gray-600 hover:text-gray-800'
+              }`}
+            >
+              🗺️ Crear Polígono
             </button>
           </div>
         </div>
@@ -269,6 +291,20 @@ function App() {
               <DateAnalysis 
                 result={dateAnalysisResult}
                 onNewAnalysis={handleNewAnalysis}
+              />
+            )}
+          </>
+        )}
+
+        {/* Polygon Creation Section */}
+        {analysisType === 'polygon' && (
+          <>
+            {!polygonData ? (
+              <PolygonCreator onPolygonCreate={handlePolygonCreate} />
+            ) : (
+              <PolygonMapView 
+                polygonData={polygonData}
+                onNewPolygon={handleNewPolygon}
               />
             )}
           </>
