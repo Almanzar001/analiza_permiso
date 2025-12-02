@@ -1,5 +1,5 @@
-# Usa Node.js 18 Alpine (más liviano)
-FROM node:18-alpine
+# Usa Node.js 20 Alpine (más liviano)
+FROM node:20-alpine
 
 # Directorio de trabajo en el contenedor
 WORKDIR /app
