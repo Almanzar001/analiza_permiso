@@ -1,6 +1,9 @@
 # Usa Node.js 20 Alpine (más liviano)
 FROM node:20-alpine
 
+# Instala un servidor HTTP simple
+RUN npm install -g serve
+
 # Directorio de trabajo en el contenedor
 WORKDIR /app
 
@@ -19,5 +22,5 @@ RUN npm run build
 # Expone el puerto 4173
 EXPOSE 4173
 
-# Comando para servir la aplicación
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173", "--strictPort"]
+# Comando para servir la aplicación usando serve
+CMD ["serve", "-s", "dist", "-l", "4173", "-n"]
