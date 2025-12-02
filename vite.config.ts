@@ -10,7 +10,11 @@ export default defineConfig({
   preview: {
     port: 4173,
     host: '0.0.0.0',
-    allowedHosts: ['all']
+    allowedHosts: [
+      'analizapermiso-senpa-pvt6kg-be37d0-157-173-127-78.traefik.me',
+      'localhost',
+      '127.0.0.1'
+    ]
   },
   build: {
     outDir: 'dist',
