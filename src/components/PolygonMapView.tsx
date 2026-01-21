@@ -13,7 +13,6 @@ const PolygonMapView = ({ polygonData, onNewPolygon }: PolygonMapViewProps) => {
   const mapInstanceRef = useRef<L.Map | null>(null)
   const userMarkerRef = useRef<L.Marker | null>(null)
   const accuracyCircleRef = useRef<L.Circle | null>(null)
-  const watchIdRef = useRef<number | null>(null)
 
   const [userLocation, setUserLocation] = useState<GeographicCoordinates | null>(null)
   const [locationAccuracy, setLocationAccuracy] = useState<number | null>(null)
@@ -30,42 +29,31 @@ const PolygonMapView = ({ polygonData, onNewPolygon }: PolygonMapViewProps) => {
       return
     }
 
-    // Detener seguimiento anterior si existe
-    if (watchIdRef.current !== null) {
-      navigator.geolocation.clearWatch(watchIdRef.current)
-    }
-
-    // Usar watchPosition para seguimiento continuo con máxima precisión
-    watchIdRef.current = navigator.geolocation.watchPosition(
+    // Usar getCurrentPosition para actualización manual (no automática)
+    navigator.geolocation.getCurrentPosition(
       (position) => {
         const accuracy = position.coords.accuracy
-
-        // Solo aceptar lecturas con buena precisión (< 20 metros)
-        if (accuracy < 20) {
-          const newLocation = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          }
-
-          setUserLocation(newLocation)
-          setLocationAccuracy(accuracy)
-          setIsLoadingLocation(false)
-
-          // Actualizar marcador en tiempo real si el mapa ya existe
-          if (mapInstanceRef.current && userMarkerRef.current) {
-            userMarkerRef.current.setLatLng([newLocation.lat, newLocation.lng])
-
-            // Actualizar círculo de precisión
-            if (accuracyCircleRef.current) {
-              accuracyCircleRef.current.setLatLng([newLocation.lat, newLocation.lng])
-              accuracyCircleRef.current.setRadius(accuracy)
-            }
-          }
-
-          console.log(`📍 Ubicación actualizada - Precisión: ${accuracy.toFixed(2)}m`)
-        } else {
-          console.log(`⚠️ Precisión insuficiente: ${accuracy.toFixed(2)}m (esperando GPS mejor)`)
+        const newLocation = {
+          lat: position.coords.latitude,
+          lng: position.coords.longitude
         }
+
+        setUserLocation(newLocation)
+        setLocationAccuracy(accuracy)
+        setIsLoadingLocation(false)
+
+        // Actualizar marcador si el mapa ya existe
+        if (mapInstanceRef.current && userMarkerRef.current) {
+          userMarkerRef.current.setLatLng([newLocation.lat, newLocation.lng])
+
+          // Actualizar círculo de precisión
+          if (accuracyCircleRef.current) {
+            accuracyCircleRef.current.setLatLng([newLocation.lat, newLocation.lng])
+            accuracyCircleRef.current.setRadius(accuracy)
+          }
+        }
+
+        console.log(`📍 Ubicación actualizada manualmente - Precisión: ${accuracy.toFixed(2)}m`)
       },
       (error) => {
         let errorMessage = 'Error desconocido'
@@ -84,22 +72,16 @@ const PolygonMapView = ({ polygonData, onNewPolygon }: PolygonMapViewProps) => {
         setIsLoadingLocation(false)
       },
       {
-        enableHighAccuracy: true,  // Usar GPS en vez de WiFi/celular
-        timeout: 30000,             // 30 segundos para esperar señal GPS precisa
+        enableHighAccuracy: true,  // Usar GPS de alta precisión
+        timeout: 15000,             // 15 segundos para obtener ubicación
         maximumAge: 0               // SIEMPRE obtener ubicación fresca, nunca usar caché
       }
     )
   }
 
   useEffect(() => {
+    // Obtener ubicación inicial al cargar
     getUserLocation()
-
-    // Limpiar watchPosition al desmontar
-    return () => {
-      if (watchIdRef.current !== null) {
-        navigator.geolocation.clearWatch(watchIdRef.current)
-      }
-    }
   }, [])
 
   useEffect(() => {
@@ -308,14 +290,14 @@ const PolygonMapView = ({ polygonData, onNewPolygon }: PolygonMapViewProps) => {
             <div className="flex items-center">
               <span className="text-sm text-gray-700">Tu ubicación:</span>
               {isLoadingLocation && (
-                <span className="ml-2 text-sm text-blue-600">🔄 Obteniendo GPS de alta precisión...</span>
+                <span className="ml-2 text-sm text-blue-600">🔄 Obteniendo ubicación GPS...</span>
               )}
-              {userLocation && (
+              {userLocation && !isLoadingLocation && (
                 <span className="ml-2 text-xs text-green-600 font-mono">
                   {userLocation.lat.toFixed(7)}°, {userLocation.lng.toFixed(7)}°
                 </span>
               )}
-              {locationError && (
+              {locationError && !isLoadingLocation && (
                 <span className="ml-2 text-sm text-red-600">❌ {locationError}</span>
               )}
             </div>
@@ -337,7 +319,7 @@ const PolygonMapView = ({ polygonData, onNewPolygon }: PolygonMapViewProps) => {
               onClick={getUserLocation}
               className="text-sm bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded transition-colors"
             >
-              🔄 Reiniciar GPS
+              📍 Actualizar Ubicación
             </button>
           )}
         </div>
