@@ -10,7 +10,7 @@ interface PolygonCreatorProps {
 
 const PolygonCreator = ({ onPolygonCreate }: PolygonCreatorProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const selectedModel = 'meta-llama/llama-3.2-90b-vision-instruct'
+  const selectedModel = 'openai/gpt-4o'
 
   const handleFileAnalysis = async (files: File[]) => {
     setIsAnalyzing(true)

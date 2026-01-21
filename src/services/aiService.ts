@@ -43,33 +43,33 @@ class AIService {
   getAvailableModels(): ModelOption[] {
     return [
       {
+        id: 'openai/gpt-4o',
+        name: 'GPT-4o (Recommended)',
+        description: 'Best balance of cost/performance. Excellent OCR and document understanding',
+        pricing: { prompt: 2.5, completion: 10 }
+      },
+      {
         id: 'anthropic/claude-3.5-sonnet',
         name: 'Claude 3.5 Sonnet',
         description: 'Excellent for document analysis and structured data extraction',
         pricing: { prompt: 3, completion: 15 }
       },
       {
-        id: 'openai/gpt-4-vision-preview',
-        name: 'GPT-4 Vision',
-        description: 'Great for image and PDF analysis with vision capabilities',
-        pricing: { prompt: 10, completion: 30 }
+        id: 'google/gemini-2.0-flash-exp:free',
+        name: 'Gemini 2.0 Flash (Free)',
+        description: 'Free but may have rate limits during peak times',
+        pricing: { prompt: 0, completion: 0 }
       },
       {
-        id: 'google/gemini-pro-vision',
-        name: 'Gemini Pro Vision',
-        description: 'Google\'s multimodal model for text and image understanding',
-        pricing: { prompt: 0.125, completion: 0.375 }
-      },
-      {
-        id: 'meta-llama/llama-3.2-90b-vision-instruct',
-        name: 'Llama 3.2 Vision',
-        description: 'Open-source vision model with good document understanding',
-        pricing: { prompt: 0.9, completion: 0.9 }
+        id: 'anthropic/claude-3-opus',
+        name: 'Claude 3 Opus',
+        description: 'Most capable for complex documents (expensive)',
+        pricing: { prompt: 15, completion: 75 }
       }
     ]
   }
 
-  async analyzePermitDocument(file: File, selectedModel = 'anthropic/claude-3.5-sonnet'): Promise<PermitAnalysisResponse> {
+  async analyzePermitDocument(file: File, selectedModel = 'openai/gpt-4o'): Promise<PermitAnalysisResponse> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key not configured')
     }
@@ -97,7 +97,7 @@ class AIService {
       const requestBody = {
         model: selectedModel,
         messages,
-        temperature: 0.1,
+        temperature: 0.05,
         max_tokens: 1500,
         top_p: 1,
         frequency_penalty: 0,
@@ -193,7 +193,7 @@ class AIService {
     }
   }
 
-  async analyzeMultipleFilesSeparately(files: File[], selectedModel = 'anthropic/claude-3.5-sonnet'): Promise<PermitAnalysisResponse> {
+  async analyzeMultipleFilesSeparately(files: File[], selectedModel = 'openai/gpt-4o'): Promise<PermitAnalysisResponse> {
     console.log('📋 Analizando cada archivo por separado...')
     
     const results: PermitAnalysisResponse[] = []
@@ -262,7 +262,7 @@ class AIService {
     return combined
   }
 
-  async analyzeMultipleFiles(files: File[], selectedModel = 'anthropic/claude-3.5-sonnet'): Promise<PermitAnalysisResponse> {
+  async analyzeMultipleFiles(files: File[], selectedModel = 'openai/gpt-4o'): Promise<PermitAnalysisResponse> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key not configured')
     }
@@ -300,7 +300,7 @@ class AIService {
       const requestBody = {
         model: selectedModel,
         messages,
-        temperature: 0.1,
+        temperature: 0.05,
         max_tokens: 2000,
         top_p: 1,
         frequency_penalty: 0,
@@ -320,7 +320,7 @@ class AIService {
         body: JSON.stringify({
           model: selectedModel,
           messages,
-          temperature: 0.1,
+          temperature: 0.05,
           max_tokens: 2000,
           top_p: 1,
           frequency_penalty: 0,
@@ -398,66 +398,75 @@ class AIService {
   }
 
   private createAnalysisMessages(content: string, fileType: string): any[] {
-    const systemPrompt = `Eres un EXPERTO EN CARTOGRAFÍA especializado en extraer coordenadas exactas de documentos oficiales de República Dominicana. 
+    const systemPrompt = `Eres un EXPERTO EN CARTOGRAFÍA especializado en extraer coordenadas exactas de permisos ambientales de República Dominicana.
 
-🎯 **TU ÚNICA MISIÓN: ENCONTRAR COORDENADAS EXACTAS**
+🎯 MISIÓN: Extraer coordenadas EXACTAS (sin aproximar ni modificar dígitos)
 
-BUSCA ESPECÍFICAMENTE:
+📍 FORMATOS DE COORDENADAS A BUSCAR (en orden de prioridad):
 
-📍 **COORDENADAS UTM (PRIORIDAD MÁXIMA):**
-- Busca TABLAS con columnas "X" e "Y" o "ESTE" y "NORTE"
-- Busca números de 6-7 dígitos para X y Y
-- Ejemplos típicos para República Dominicana:
-  * X: 530478, Y: 2042873
-  * X: 530650, Y: 2042871  
-  * X: 345123, Y: 2123456
-- Lee TODOS los números exactamente como aparecen
-- NO aproximes ni cambies ningún dígito
-- Busca múltiples puntos si están disponibles
+1️⃣ FORMATO COMPACTO (MUY COMÚN en certificados oficiales):
+   Patrón: [ZONA][X]UTM[Y] separados por guiones
+   Ejemplo: "19Q561063UTM2066147-19Q561047UTM2066132-19Q561019UTM2066142"
 
-📍 **COORDENADAS GEOGRÁFICAS (ALTERNATIVA):**
-- Latitud: 17° a 20° (formato: 18.123456 o 18°12'34.5")
-- Longitud: -68° a -72° (formato: -69.123456 o -69°12'34.5")
-- Busca en cualquier parte del documento
+   Cómo leerlo:
+   - 19Q = Zona UTM
+   - 561063 = X (ESTE) - 6 dígitos
+   - UTM = separador literal (ignorar)
+   - 2066147 = Y (NORTE) - 7 dígitos
 
-📍 **ZONA UTM:**
-- Para República Dominicana: "19Q", "19N", "20N"
-- Busca texto como "Zona 19" o "UTM 19Q"
+   Busca texto como: "En las Coordenadas:" seguido de este patrón
 
-🔍 **ESTRATEGIA DE BÚSQUEDA:**
-1. **ESCANEA** todo el documento buscando números grandes
-2. **IDENTIFICA** tablas, mapas, o secciones técnicas
-3. **EXTRAE** todos los puntos de coordenadas disponibles
-4. **VERIFICA** que estén en rangos válidos para República Dominicana
+2️⃣ TABLAS TRADICIONALES:
+   - Columnas: "X" e "Y" o "ESTE" y "NORTE"
+   - Formato clásico: X: 530478, Y: 2042873
 
-⚠️ **CRÍTICO:**
-- Copia los números EXACTAMENTE como aparecen
-- NO redondees ni aproximes
-- Si hay múltiples puntos, incluye el primero como principal
-- Si no encuentras coordenadas, marca como null
+3️⃣ COORDENADAS GEOGRÁFICAS (alternativa):
+   - Latitud: 17.0° a 20.0°
+   - Longitud: -72.0° a -68.0°
+   - Formatos: 18.123456 o 18°12'34.5"
 
-RESPONDE SOLO CON JSON (sin explicaciones):
+📏 RANGOS VÁLIDOS para República Dominicana:
+- X (ESTE): 300,000-800,000 (6-7 dígitos)
+- Y (NORTE): 1,900,000-2,200,000 (6-7 dígitos)
+- Zona: "19Q", "19N", "20N"
+
+🔍 ESTRATEGIA:
+1. Busca PRIMERO el formato compacto [ZONA][X]UTM[Y]
+2. Si no encuentras, busca tablas tradicionales
+3. Extrae números EXACTOS sin modificar
+4. Primer punto → utm_coordinates principal
+5. Puntos adicionales → all_points[]
+6. Sin coordenadas → marca null
+
+⚠️ CRÍTICO:
+- Copia números tal cual aparecen
+- NO agregues ni quites dígitos
+- Si hay múltiples puntos en formato compacto, sepáralos por los guiones
+
+📋 INFORMACIÓN DEL PERMISO:
+- Número de permiso/resolución/oficio
+- Tipo (Licencia, Autorización, etc.)
+- Autoridad (MARENA, Ministerio, etc.)
+
+RESPONDE SOLO JSON (sin markdown):
 {
   "location": {
-    "utm_coordinates": { "x": 530478, "y": 2042873, "zone": "19Q" },
+    "utm_coordinates": { "x": 561063, "y": 2066147, "zone": "19Q" },
     "geographic_coordinates": { "lat": null, "lng": null },
     "polygon_center": { "lat": null, "lng": null },
     "all_points": [
-      { "x": 530478, "y": 2042873 },
-      { "x": 530650, "y": 2042871 }
+      { "x": 561063, "y": 2066147 },
+      { "x": 561047, "y": 2066132 }
     ]
   },
   "permit_info": {
-    "permit_number": "342",
-    "permit_type": "Autorización para extracción",
-    "authority": "MARENA"
+    "permit_number": "MA-E-RG-MA-001",
+    "permit_type": "Certificado de Registro de Impacto Mínimo",
+    "authority": "Ministerio de Medio Ambiente"
   }
 }
 
-IMPORTANTE: 
-- Números directos SIN corchetes: "x": 530478 (no "x": [530478])
-- null directo SIN corchetes: "lat": null (no "lat": [null])
-- Strings SIN corchetes: "zone": "19Q" (no "zone": "[19Q]")`
+FORMATO: Números directos (no arrays), null directo, strings sin corchetes`
 
     if (fileType === 'application/pdf') {
       return [
@@ -491,66 +500,60 @@ IMPORTANTE:
   }
 
   private createMultipleFilesAnalysisMessages(fileContents: Array<{content: string, type: string, name: string}>): any[] {
-    const systemPrompt = `Eres un experto en análisis de permisos ambientales de República Dominicana. Tienes múltiples páginas/archivos del mismo permiso ambiental. Tu tarea es consolidar toda la información y extraer los datos requeridos en un formato JSON estructurado.
+    const systemPrompt = `Eres un experto en análisis de permisos ambientales de República Dominicana con MÚLTIPLES PÁGINAS/ARCHIVOS del mismo permiso.
 
-INFORMACIÓN CRÍTICA A EXTRAER (combinando todas las páginas):
+🎯 MISIÓN: Consolidar información de todas las páginas en un solo resultado
 
-1. **FECHAS (BUSCAR EN TODAS LAS PÁGINAS)**:
-   - EMISIÓN: Busca "Santo Domingo de Guzmán, D.N." + fecha como "12 de junio de 2025"
-   - AUTORIZACIÓN: Busca "Válido por noventa (90) días" o similar
-   - El número entre paréntesis: (90) = 90 días
-   - FORMATO: "DD de MONTH de YYYY" → YYYY-MM-DD
+📄 ANÁLISIS MULTÍPÁGINA (revisa TODAS las páginas):
 
-2. **COORDENADAS (REPÚBLICA DOMINICANA)**:
-   - UTM: X (300000-800000), Y (1900000-2200000), Zona (19N/20N)
-   - Geográficas: Latitud (17.5-20.0), Longitud (-72.0 a -68.0)
-   - Si solo hay UTM, conviértelas a geográficas
+1️⃣ COORDENADAS:
+   - UTM: X (300,000-800,000), Y (1,900,000-2,200,000), Zona (19Q/19N/20N)
+   - Geográficas: Lat (17.5-20.0), Lng (-72.0 a -68.0)
+   - Prioriza coordenadas del área principal del proyecto
+   - Usa la información más completa/precisa entre páginas
 
-3. **INFORMACIÓN DEL PERMISO**:
-   - Número de oficio/resolución/permiso
-   - Tipo (Licencia Ambiental, Autorización Ambiental, etc.)
-   - Autoridad emisora (MARENA, Ministerio de Medio Ambiente, etc.)
+2️⃣ FECHAS:
+   - Emisión: Busca fecha en firma digital con QR (pie de página)
+   - Días autorizados: "VÁLIDO POR X DÍAS", "plazo de X días"
+   - Conversión: "6 meses" → 180 días, "1 año" → 365 días
+   - Si hay contradicciones → usa la más reciente
 
-INSTRUCCIONES PARA ANÁLISIS MULTÍPÁGINA:
-- Revisa TODAS las páginas buscando fechas (pueden estar en páginas diferentes)
-- Consolida información: usa la más precisa o completa
-- Para fechas: busca tanto la emisión como el plazo en todas las páginas
-- BUSCA ESPECÍFICAMENTE: "VÁLIDO POR X DÍAS", "se otorga plazo de X días", "vigencia de X días"
-- Si ves "por X días hábiles" → multiplica por 1.4 para incluir fines de semana
-- Si dice "6 meses" → convierte a ~180 días
-- Si dice "1 año" → convierte a 365 días
-- Prioriza coordenadas del área principal del proyecto
+3️⃣ INFORMACIÓN DEL PERMISO:
+   - Número: oficio/resolución/permiso
+   - Tipo: Licencia/Autorización Ambiental
+   - Autoridad: MARENA, Ministerio de Medio Ambiente
 
-EJEMPLOS CRÍTICOS A DETECTAR:
-- "VÁLIDO POR 90 DÍAS" → authorized_days: 90
-- "se otorga un plazo de 60 días naturales" → authorized_days: 60
-- "vigencia de 30 días" → authorized_days: 30
+🔍 ESTRATEGIA DE CONSOLIDACIÓN:
+- Combina información complementaria entre páginas
+- Si hay duplicados → prioriza el más completo
+- Si hay contradicciones → usa el valor más específico
+- Busca fechas en diferentes páginas (pueden estar separadas)
 
-CÁLCULO DE FECHAS CRÍTICO:
-1. Encuentra fecha de emisión del permiso
-2. Encuentra días/plazo autorizado 
-3. Suma: fecha_vencimiento = fecha_emisión + días_autorizados
+⚠️ VALIDACIÓN CRÍTICA:
+- Verifica que coordenadas estén en rangos válidos para RD
+- Calcula: fecha_vencimiento = fecha_emisión + días_autorizados
+- Si falta información clave → marca null
 
-FORMATO DE RESPUESTA (JSON exacto):
+RESPONDE SOLO JSON (sin markdown):
 {
   "location": {
-    "utm_coordinates": { "x": number, "y": number, "zone": "string" },
-    "geographic_coordinates": { "lat": number, "lng": number },
-    "polygon_center": { "lat": number, "lng": number }
+    "utm_coordinates": { "x": 530478, "y": 2042873, "zone": "19Q" },
+    "geographic_coordinates": { "lat": 18.123456, "lng": -69.123456 },
+    "polygon_center": { "lat": 18.123456, "lng": -69.123456 }
   },
   "dates": {
-    "emission_date": "YYYY-MM-DD",
-    "authorized_days": number,
-    "expiration_date": "YYYY-MM-DD"
+    "emission_date": "2025-01-07",
+    "authorized_days": 90,
+    "expiration_date": "2025-04-07"
   },
   "permit_info": {
-    "permit_number": "string",
-    "permit_type": "string",
-    "authority": "string"
+    "permit_number": "342-2025",
+    "permit_type": "Autorización Ambiental",
+    "authority": "MARENA"
   }
 }
 
-PRIORIZA LA PRECISIÓN EN LAS FECHAS - es lo más importante para determinar vigencia.`
+PRIORIDAD: Precisión en fechas (crítico para vigencia del permiso)`
 
     const userContent: any[] = [
       {
@@ -587,7 +590,7 @@ PRIORIZA LA PRECISIÓN EN LAS FECHAS - es lo más importante para determinar vig
     ]
   }
 
-  async analyzeDateDocument(file: File, selectedModel = 'meta-llama/llama-3.2-90b-vision-instruct'): Promise<DateAnalysisResponse> {
+  async analyzeDateDocument(file: File, selectedModel = 'openai/gpt-4o'): Promise<DateAnalysisResponse> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key not configured')
     }
@@ -615,7 +618,7 @@ PRIORIZA LA PRECISIÓN EN LAS FECHAS - es lo más importante para determinar vig
       const requestBody = {
         model: selectedModel,
         messages,
-        temperature: 0.1,
+        temperature: 0.05,
         max_tokens: 1000,
         top_p: 1,
         frequency_penalty: 0,
@@ -738,81 +741,54 @@ PRIORIZA LA PRECISIÓN EN LAS FECHAS - es lo más importante para determinar vig
   }
 
   private createDateAnalysisMessages(content: string, fileType: string): any[] {
-    const systemPrompt = `Eres un EXPERTO EN ANÁLISIS DE DOCUMENTOS OFICIALES especializado en extraer fechas exactas de permisos ambientales de República Dominicana.
+    const systemPrompt = `Eres un EXPERTO EN ANÁLISIS DE DOCUMENTOS para permisos ambientales de República Dominicana.
 
-🎯 **TU ÚNICA MISIÓN: ENCONTRAR FECHAS Y DÍAS EXACTOS**
+🎯 MISIÓN: Extraer fecha de emisión y días autorizados con precisión
 
-BUSCA ESPECÍFICAMENTE:
+📅 FECHA DE EMISIÓN - UBICACIÓN ÚNICA:
+⚠️ SOLO ES VÁLIDA la fecha en el PIE DE PÁGINA junto al código QR de firma digital
+❌ IGNORAR: Fechas en cabecera, cuerpo, o cualquier otro lugar del documento
 
-📅 **FECHA DE EMISIÓN (PRIORIDAD MÁXIMA):**
-- ⚠️ **UBICACIÓN CRÍTICA**: La fecha REAL está en la FIRMA DIGITAL con código QR
-- **UBICACIÓN ESPECÍFICA**: PIE DE PÁGINA del documento, en la sección de FIRMA DIGITAL
-- Busca DESPUÉS del código QR de la firma digital del ministerio
-- La fecha está JUNTO/CERCA del código QR de verificación digital
-- **IGNORAR**: Cualquier fecha en la cabecera del documento (son de plantilla)
-- **BUSCAR ÚNICAMENTE**: La fecha que aparece con la firma digital/QR en el pie de página
+🔍 PROCESO DE EXTRACCIÓN:
+1. Ve directamente al PIE DE PÁGINA (sección final)
+2. Localiza el código QR de firma/autenticación digital
+3. Extrae la fecha que está JUNTO/CERCA del QR
+4. Esa es la única fecha válida
 
-📍 **PATRONES DE FECHA EN LA FIRMA DIGITAL:**
-- "17/07/2025" (formato DD/MM/YYYY junto al QR)
-- "7 de enero de 2025" (formato texto junto al QR)
-- La fecha aparece como parte de la VALIDACIÓN/FIRMA DIGITAL
+📋 FORMATOS DE FECHA ACEPTADOS (junto al QR):
+- "17/07/2025" (DD/MM/YYYY) → convertir a "2025-07-17"
+- "7 de enero de 2025" → convertir a "2025-01-07"
+- "07-01-2025" (DD-MM-YYYY) → convertir a "2025-01-07"
 
-🎯 **INSTRUCCIÓN ESPECÍFICA:**
-- ESCANEA solo el área del PIE DE PÁGINA donde está el código QR
-- LOCALIZA la fecha que está ASOCIADA con la firma digital/QR
-- IGNORA completamente cualquier fecha en otras partes del documento
-- La fecha correcta está en la SECCIÓN DE AUTENTICACIÓN DIGITAL
+⚠️ CONVERSIÓN CRÍTICA:
+DD/MM/YYYY → YYYY-MM-DD
+Ejemplo: 17/07/2025 → 2025-07-17 (julio, no enero)
 
-📅 **DÍAS AUTORIZADOS (CRÍTICO):**
-- Busca EXACTAMENTE las frases:
-  * "VÁLIDO POR X DÍAS" 
-  * "VÁLIDO POR X (X) DÍAS"
-  * "se otorga un plazo de X días"
-  * "vigencia de X días"
-  * "autorizado por X días naturales"
-- Ejemplos:
-  * "VÁLIDO POR 90 DÍAS" → 90
-  * "VÁLIDO POR NOVENTA (90) DÍAS" → 90
-  * "plazo de 60 días naturales" → 60
+📆 DÍAS AUTORIZADOS - Frases exactas a buscar:
+- "VÁLIDO POR X DÍAS" o "VÁLIDO POR X (X) DÍAS"
+- "plazo de X días" o "vigencia de X días"
+- "autorizado por X días naturales/hábiles"
 
-🔍 **ESTRATEGIA DE BÚSQUEDA MUY ESPECÍFICA:**
-1. **VE DIRECTAMENTE** al PIE DE PÁGINA (última parte del documento)
-2. **BUSCA** la sección con código QR de firma digital
-3. **IDENTIFICA** la fecha que está CON/JUNTO al código QR
-4. **EXTRAE** solo esa fecha del área de la firma digital
-5. **BUSCA** "VÁLIDO POR X DÍAS" en el cuerpo del documento (separado del QR)
+Ejemplos:
+- "VÁLIDO POR 90 DÍAS" → 90
+- "VÁLIDO POR NOVENTA (90) DÍAS" → 90
+- "plazo de 60 días naturales" → 60
 
-🚨 **REGLAS ABSOLUTAS:**
-- **SOLO** la fecha del área de FIRMA DIGITAL/QR es válida
-- **IGNORA** fechas en cabecera, cuerpo, o cualquier otro lugar
-- **LA FECHA CORRECTA** está específicamente en la zona del código QR
-- **NO USES** fechas de otras secciones, aunque parezcan oficiales
+🎯 CASOS ESPECIALES:
+- Número entre paréntesis: usa el número, no el texto
+- "días hábiles" vs "días naturales": extrae el número tal cual
+- Si no encuentras → null
 
-🎯 **CONFIRMACIÓN DE UBICACIÓN:**
-- ✅ Fecha en zona de firma digital con QR = CORRECTA
-- ❌ Fecha en cabecera del documento = INCORRECTA
-- ❌ Fecha en cuerpo del documento = INCORRECTA
-- ❌ Cualquier otra fecha = INCORRECTA
-
-⚠️ **CRÍTICO:**
-- Copia las fechas EXACTAMENTE como aparecen
-- Si encuentras formato DD/MM/YYYY (ej: "17/07/2025"), conviértelo correctamente:
-  * 17/07/2025 = 17 de julio de 2025 = 2025-07-17
-  * DD = día, MM = mes, YYYY = año
-- NO aproximes los días
-- Si encuentras "NOVENTA (90)", usa el número: 90  
-- Si no encuentras algo, marca como null
-
-📅 **CONVERSIÓN DE FECHAS:**
-- Formato DD/MM/YYYY → YYYY-MM-DD
-- Ejemplo: 17/07/2025 → 2025-07-17 (17 de julio)
-
-🗓️ **INFORMACIÓN ADICIONAL A BUSCAR:**
+📋 INFORMACIÓN DEL PERMISO:
 - Número de permiso/resolución/oficio
-- Tipo de permiso (Licencia, Autorización, etc.)
-- Autoridad emisora (MARENA, Ministerio de Medio Ambiente, etc.)
+- Tipo (Licencia, Autorización, etc.)
+- Autoridad (MARENA, Ministerio, etc.)
 
-RESPONDE SOLO CON JSON (sin explicaciones):
+✅ VALIDACIÓN DE UBICACIÓN:
+- ✅ Fecha cerca de código QR = CORRECTA
+- ❌ Fecha en cualquier otro lugar = INCORRECTA
+
+RESPONDE SOLO JSON (sin markdown):
 {
   "date_info": {
     "emission_date": "2025-01-07",
@@ -829,10 +805,7 @@ RESPONDE SOLO CON JSON (sin explicaciones):
   }
 }
 
-IMPORTANTE: 
-- Fechas en formato YYYY-MM-DD: "emission_date": "2025-01-07"
-- Números directos: "authorized_days": 90 (no strings)
-- Los campos expiration_date, days_remaining se calculan automáticamente`
+FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para campos calculados`
 
     if (fileType === 'application/pdf') {
       return [
@@ -865,7 +838,7 @@ IMPORTANTE:
     }
   }
 
-  async analyzePolygonDocument(file: File, selectedModel = 'meta-llama/llama-3.2-90b-vision-instruct'): Promise<PolygonAnalysisResponse> {
+  async analyzePolygonDocument(file: File, selectedModel = 'openai/gpt-4o'): Promise<PolygonAnalysisResponse> {
     if (!this.apiKey) {
       throw new Error('OpenRouter API key not configured')
     }
@@ -893,7 +866,7 @@ IMPORTANTE:
       const requestBody = {
         model: selectedModel,
         messages,
-        temperature: 0.1,
+        temperature: 0.05,
         max_tokens: 1500,
         top_p: 1,
         frequency_penalty: 0,
@@ -983,105 +956,67 @@ IMPORTANTE:
   }
 
   private createPolygonAnalysisMessages(content: string, fileType: string): any[] {
-    const systemPrompt = `Eres un EXPERTO EN CARTOGRAFÍA especializado en extraer MÚLTIPLES COORDENADAS para crear POLÍGONOS de documentos oficiales de República Dominicana.
+    const systemPrompt = `Extract all coordinate points from this environmental permit to create a polygon.
 
-🎯 **TU ÚNICA MISIÓN: ENCONTRAR TODOS LOS PUNTOS DE COORDENADAS PARA CREAR UN POLÍGONO**
+COORDINATE FORMATS TO FIND:
 
-BUSCA ESPECÍFICAMENTE:
+1. COMPACT FORMAT (most common):
+   Pattern: [ZONE][X]UTM[Y] separated by hyphens
+   Example: "19Q561063UTM2066147-19Q561047UTM2066132-19Q561019UTM2066142"
 
-📍 **MÚLTIPLES COORDENADAS UTM (PRIORIDAD MÁXIMA):**
-- Busca TABLAS con múltiples filas de coordenadas X e Y
-- Busca secciones como "VÉRTICES DEL POLÍGONO", "COORDENADAS DEL ÁREA", "PUNTOS LÍMITE"
-- Busca patrones como:
-  * PUNTO 1: X: 530478, Y: 2042873
-  * PUNTO 2: X: 530650, Y: 2042871  
-  * PUNTO 3: X: 530890, Y: 2043100
-  * PUNTO 4: X: 530720, Y: 2043250
-- NECESITAS MÍNIMO 3 PUNTOS para formar un polígono
-- BUSCA HASTA 20 PUNTOS si están disponibles
+   How to parse:
+   - 19Q561063UTM2066147 = Point 1: X=561063, Y=2066147, Zone=19Q
+   - Split by hyphens (-) to get each point
 
-📍 **PATRONES COMUNES EN DOCUMENTOS:**
-- Tabla de "Coordenadas de los vértices"
-- Lista numerada: "Punto 1, Punto 2, Punto 3..."
-- Sección "Delimitación del área"
-- "Coordenadas UTM de la parcela"
-- "Límites del proyecto"
+2. TABLE FORMAT:
+   | Vertex | X (East) | Y (North) |
+   | V1     | 530478   | 2042873   |
 
-📍 **FORMATO DE COORDENADAS:**
-- X (ESTE): números de 6-7 dígitos (300000-800000)
-- Y (NORTE): números de 6-7 dígitos (1900000-2200000)  
-- Zona UTM: típicamente "19Q", "19N", "20N" para República Dominicana
+3. LIST FORMAT:
+   Point 1: X=530478, Y=2042873
 
-🔍 **ESTRATEGIA DE BÚSQUEDA:**
-1. **BUSCA** secciones con títulos como "coordenadas", "vértices", "polígono", "límites"
-2. **IDENTIFICA** tablas o listas con múltiples puntos
-3. **EXTRAE** TODOS los puntos disponibles en orden
-4. **ASIGNA** etiquetas: "Vértice 1", "Vértice 2", etc.
-5. **VERIFICA** que estén en rangos válidos para República Dominicana
+VALID RANGES (Dominican Republic):
+- X (EAST): 300,000-800,000 (6-7 digits)
+- Y (NORTH): 1,900,000-2,200,000 (6-7 digits)
+- Zone: "19Q", "19N", "20N"
 
-⚠️ **CRÍTICO:**
-- Copia los números EXACTAMENTE como aparecen
-- NO redondees ni aproximes
-- Mantén el ORDEN de los puntos como aparecen
-- Si solo encuentras 1-2 puntos, NO es suficiente para polígono
-- Asigna zona UTM apropiada si no está especificada
+INSTRUCTIONS:
+1. Extract ALL coordinate points in the order they appear
+2. Minimum 3 points, maximum 20 points
+3. Copy numbers exactly as shown
+4. Assign sequential labels: "Vértice 1", "Vértice 2", etc.
 
-🗺️ **EJEMPLOS DE PATRONES A BUSCAR:**
-
-\`\`\`
-COORDENADAS DE LOS VÉRTICES:
-Punto 1: X=530478, Y=2042873
-Punto 2: X=530650, Y=2042871  
-Punto 3: X=530890, Y=2043100
-Punto 4: X=530720, Y=2043250
-\`\`\`
-
-\`\`\`
-| Vértice | X (Este) | Y (Norte) |
-|---------|----------|-----------|
-| V1      | 530478   | 2042873   |
-| V2      | 530650   | 2042871   |
-| V3      | 530890   | 2043100   |
-\`\`\`
-
-RESPONDE SOLO CON JSON (sin explicaciones):
+RESPOND ONLY WITH JSON:
 {
   "polygon_points": [
-    { "x": 530478, "y": 2042873, "zone": "19Q", "label": "Vértice 1" },
-    { "x": 530650, "y": 2042871, "zone": "19Q", "label": "Vértice 2" },
-    { "x": 530890, "y": 2043100, "zone": "19Q", "label": "Vértice 3" },
-    { "x": 530720, "y": 2043250, "zone": "19Q", "label": "Vértice 4" }
+    { "x": 561063, "y": 2066147, "zone": "19Q", "label": "Vértice 1" },
+    { "x": 561047, "y": 2066132, "zone": "19Q", "label": "Vértice 2" },
+    { "x": 561019, "y": 2066142, "zone": "19Q", "label": "Vértice 3" }
   ],
   "permit_info": {
-    "permit_number": "342-2025",
-    "permit_type": "Autorización Ambiental",
-    "authority": "MARENA"
+    "permit_number": "MA-E-RG-MA-001",
+    "permit_type": "Certificado de Registro de Impacto Mínimo",
+    "authority": "Ministerio de Medio Ambiente"
   }
-}
-
-IMPORTANTE: 
-- Números directos SIN corchetes: "x": 530478
-- Strings SIN corchetes: "zone": "19Q"
-- Mínimo 3 puntos para crear polígono válido
-- Máximo 20 puntos por polígono`
+}`
 
     if (fileType === 'application/pdf') {
       return [
         { role: 'system', content: systemPrompt },
-        { 
-          role: 'user', 
-          content: `Analiza este documento PDF de permiso ambiental y extrae TODAS las coordenadas de los vértices del polígono (en base64): ${content}` 
+        {
+          role: 'user',
+          content: `Extract all coordinate points from this environmental permit document.`
         }
       ]
     } else {
       return [
         { role: 'system', content: systemPrompt },
-        { 
-          role: 'user', 
+        {
+          role: 'user',
           content: [
             {
               type: 'text',
-              text: 'Analiza esta imagen de permiso ambiental y extrae TODAS las coordenadas de los vértices para crear el polígono:'
+              text: 'Extract all coordinate points from this environmental permit image to create a polygon.'
             },
             {
               type: 'image_url',
