@@ -101,24 +101,30 @@ const PolygonCreator = ({ onPolygonCreate }: PolygonCreatorProps) => {
       <div className="bg-blue-50 rounded-lg p-4">
         <h4 className="font-medium text-blue-800 mb-2">🔍 ¿Qué debe contener el documento?</h4>
         <ul className="text-sm text-blue-700 space-y-1">
+          <li>• <strong>Todos los vértices del polígono</strong> (la IA extraerá TODOS los puntos automáticamente)</li>
           <li>• Tabla o lista con múltiples coordenadas UTM (mínimo 3 puntos)</li>
-          <li>• Secciones como "Vértices del polígono", "Coordenadas del área", "Puntos límite"</li>
-          <li>• Coordenadas en formato: X: 530478, Y: 2042873</li>
-          <li>• Para República Dominicana: X (300000-800000), Y (1900000-2200000)</li>
-          <li>• Zona UTM típicamente 19N, 19Q o 20N</li>
+          <li>• Secciones como "Vértices del polígono", "Coordenadas del área", "En las Coordenadas:"</li>
+          <li>• Formato compacto: 19Q561063UTM2066147-19Q561047UTM2066132-...</li>
+          <li>• Formato tabla: X: 530478, Y: 2042873</li>
+          <li>• República Dominicana: X (300000-800000), Y (1900000-2200000), Zona 19Q/19N/20N</li>
         </ul>
       </div>
 
       {/* Ejemplo visual */}
       <div className="bg-green-50 rounded-lg p-4">
-        <h4 className="font-medium text-green-800 mb-2">✅ Ejemplo de coordenadas buscadas:</h4>
-        <div className="text-sm text-green-700 font-mono bg-white p-3 rounded border">
-          <div>COORDENADAS DE LOS VÉRTICES:</div>
-          <div>Punto 1: X=530478, Y=2042873</div>
-          <div>Punto 2: X=530650, Y=2042871</div>
-          <div>Punto 3: X=530890, Y=2043100</div>
-          <div>Punto 4: X=530720, Y=2043250</div>
+        <h4 className="font-medium text-green-800 mb-2">✅ Ejemplos de formatos soportados:</h4>
+        <div className="text-sm text-green-700 font-mono bg-white p-3 rounded border space-y-2">
+          <div>
+            <div className="font-semibold">Formato compacto (común):</div>
+            <div className="text-xs">En las Coordenadas: 19Q561063UTM2066147-19Q561047UTM2066132-19Q561019UTM2066142</div>
+          </div>
+          <div>
+            <div className="font-semibold">Formato tabla:</div>
+            <div className="text-xs">Punto 1: X=530478, Y=2042873</div>
+            <div className="text-xs">Punto 2: X=530650, Y=2042871</div>
+          </div>
         </div>
+        <p className="text-xs text-green-600 mt-2">💡 La IA extraerá automáticamente todos los vértices que encuentre en el documento</p>
       </div>
     </div>
   )

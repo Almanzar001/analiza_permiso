@@ -861,13 +861,13 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
     console.log('🚀 Enviando request para análisis de polígono a OpenRouter...')
     console.log('Model:', selectedModel)
     console.log('API Key presente:', !!this.apiKey)
-    
+
     try {
       const requestBody = {
         model: selectedModel,
         messages,
         temperature: 0.05,
-        max_tokens: 1500,
+        max_tokens: 4000,  // Increased to support polygons with many vertices (50+ points)
         top_p: 1,
         frequency_penalty: 0,
         presence_penalty: 0
@@ -927,13 +927,13 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
         }
         
         console.log('AI Parsed Result (polígono):', parsedResult)
-        
+
         // Log específico para puntos del polígono
-        console.log('🗺️ PUNTOS DEL POLÍGONO DETECTADOS POR IA:')
+        console.log(`🗺️ PUNTOS DEL POLÍGONO DETECTADOS POR IA: ${parsedResult.polygon_points.length} vértices`)
         parsedResult.polygon_points.forEach((point, index) => {
-          console.log(`  - Punto ${index + 1}: X=${point.x}, Y=${point.y}, Zona=${point.zone}, Label=${point.label}`)
+          console.log(`  - Punto ${index + 1}/${parsedResult.polygon_points.length}: X=${point.x}, Y=${point.y}, Zona=${point.zone}, Label=${point.label}`)
         })
-        
+
         return parsedResult
       } catch (parseError) {
         console.error('JSON Parse Error (polígono):', parseError)
@@ -956,49 +956,66 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
   }
 
   private createPolygonAnalysisMessages(content: string, fileType: string): any[] {
-    const systemPrompt = `Extract all coordinate points from this environmental permit to create a polygon.
+    const systemPrompt = `Extract ALL coordinate points from this environmental permit to create a complete polygon.
+
+CRITICAL: You must extract EVERY SINGLE vertex/point found in the document. Do not skip any coordinates.
 
 COORDINATE FORMATS TO FIND:
 
-1. COMPACT FORMAT (most common):
-   Pattern: [ZONE][X]UTM[Y] separated by hyphens
-   Example: "19Q561063UTM2066147-19Q561047UTM2066132-19Q561019UTM2066142"
+1. COMPACT FORMAT (most common in Dominican Republic):
+   Pattern: [ZONE][X]UTM[Y] separated by hyphens (-)
+   Example: "19Q561063UTM2066147-19Q561047UTM2066132-19Q561019UTM2066142-19Q560989UTM2066142-19Q561031UTM2066181-19Q561032UTM2066181"
 
-   How to parse:
-   - 19Q561063UTM2066147 = Point 1: X=561063, Y=2066147, Zone=19Q
-   - Split by hyphens (-) to get each point
+   How to parse each point:
+   - Split the entire string by hyphens (-)
+   - Each segment format: [ZONE][X]UTM[Y]
+   - Example: "19Q561063UTM2066147" → Zone: 19Q, X: 561063, Y: 2066147
+   - Extract ALL points, not just the first few
 
 2. TABLE FORMAT:
    | Vertex | X (East) | Y (North) |
    | V1     | 530478   | 2042873   |
+   | V2     | 530650   | 2042871   |
+   | V3     | 530890   | 2043100   |
+   Read every row in the table
 
 3. LIST FORMAT:
    Point 1: X=530478, Y=2042873
+   Point 2: X=530650, Y=2042871
+   Point 3: X=530890, Y=2043100
+   Extract all numbered points
 
 VALID RANGES (Dominican Republic):
 - X (EAST): 300,000-800,000 (6-7 digits)
 - Y (NORTH): 1,900,000-2,200,000 (6-7 digits)
 - Zone: "19Q", "19N", "20N"
 
-INSTRUCTIONS:
-1. Extract ALL coordinate points in the order they appear
-2. Minimum 3 points, maximum 20 points
-3. Copy numbers exactly as shown
-4. Assign sequential labels: "Vértice 1", "Vértice 2", etc.
+CRITICAL INSTRUCTIONS:
+1. Find the coordinate section (look for "En las Coordenadas:" or similar)
+2. Extract EVERY SINGLE point you find - DO NOT stop at 3, 5, or 10 points
+3. For compact format: count the hyphens to know how many points exist
+4. Maintain the EXACT ORDER as they appear in the document
+5. Copy numbers EXACTLY as shown (do not round or modify)
+6. Assign sequential labels: "Vértice 1", "Vértice 2", "Vértice 3", etc.
 
-RESPOND ONLY WITH JSON:
+RESPOND ONLY WITH JSON (include ALL points found):
 {
   "polygon_points": [
     { "x": 561063, "y": 2066147, "zone": "19Q", "label": "Vértice 1" },
     { "x": 561047, "y": 2066132, "zone": "19Q", "label": "Vértice 2" },
-    { "x": 561019, "y": 2066142, "zone": "19Q", "label": "Vértice 3" }
+    { "x": 561019, "y": 2066142, "zone": "19Q", "label": "Vértice 3" },
+    { "x": 560989, "y": 2066142, "zone": "19Q", "label": "Vértice 4" },
+    { "x": 561031, "y": 2066181, "zone": "19Q", "label": "Vértice 5" },
+    { "x": 561032, "y": 2066181, "zone": "19Q", "label": "Vértice 6" }
   ],
   "permit_info": {
     "permit_number": "MA-E-RG-MA-001",
     "permit_type": "Certificado de Registro de Impacto Mínimo",
     "authority": "Ministerio de Medio Ambiente"
   }
-}`
+}
+
+IMPORTANT: Include ALL vertices found in the document, not just a subset.`
 
     if (fileType === 'application/pdf') {
       return [
