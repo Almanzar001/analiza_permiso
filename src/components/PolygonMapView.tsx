@@ -19,6 +19,120 @@ const PolygonMapView = ({ polygonData, onNewPolygon }: PolygonMapViewProps) => {
   const [locationError, setLocationError] = useState<string | null>(null)
   const [isLoadingLocation, setIsLoadingLocation] = useState(false)
 
+  // Función para generar y descargar el archivo KML
+  const downloadKML = () => {
+    try {
+      // Convertir puntos UTM a coordenadas geográficas
+      const geographicPoints = polygonData.points.map(point => {
+        return CoordinateUtils.utmToGeographic({
+          x: point.x,
+          y: point.y,
+          zone: point.zone
+        })
+      })
+
+      // Crear las coordenadas en formato KML (lng,lat,altitude)
+      // KML requiere que el polígono esté cerrado (primer punto = último punto)
+      const coordinates = geographicPoints
+        .map(point => `${point.lng},${point.lat},0`)
+        .join('\n              ')
+      const firstPoint = geographicPoints[0]
+      const closingCoordinate = `${firstPoint.lng},${firstPoint.lat},0`
+
+      // Calcular centro para la vista
+      const centerLat = geographicPoints.reduce((sum, p) => sum + p.lat, 0) / geographicPoints.length
+      const centerLng = geographicPoints.reduce((sum, p) => sum + p.lng, 0) / geographicPoints.length
+
+      // Generar el contenido KML
+      const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Polígono SENPA</name>
+    <description>Polígono exportado desde Analiza Permiso SENPA - ${polygonData.points.length} vértices</description>
+
+    <Style id="polygonStyle">
+      <LineStyle>
+        <color>ff059669</color>
+        <width>3</width>
+      </LineStyle>
+      <PolyStyle>
+        <color>3310b981</color>
+      </PolyStyle>
+    </Style>
+
+    <Style id="vertexStyle">
+      <IconStyle>
+        <color>ff0000ff</color>
+        <scale>0.4</scale>
+        <Icon>
+          <href>http://maps.google.com/mapfiles/kml/shapes/shaded_dot.png</href>
+        </Icon>
+      </IconStyle>
+      <LabelStyle>
+        <scale>0</scale>
+      </LabelStyle>
+    </Style>
+
+    <Placemark>
+      <name>Polígono del Permiso</name>
+      <description>
+        <![CDATA[
+          <h3>Información del Polígono</h3>
+          <p><b>Vértices:</b> ${polygonData.points.length}</p>
+          <p><b>Centro:</b> ${centerLat.toFixed(6)}°, ${centerLng.toFixed(6)}°</p>
+          <hr/>
+          <h4>Coordenadas UTM:</h4>
+          <ul>
+            ${polygonData.points.map(p => `<li>${p.label}: ${p.x.toLocaleString()}, ${p.y.toLocaleString()} (${p.zone})</li>`).join('\n            ')}
+          </ul>
+        ]]>
+      </description>
+      <styleUrl>#polygonStyle</styleUrl>
+      <Polygon>
+        <outerBoundaryIs>
+          <LinearRing>
+            <coordinates>
+              ${coordinates}
+              ${closingCoordinate}
+            </coordinates>
+          </LinearRing>
+        </outerBoundaryIs>
+      </Polygon>
+    </Placemark>
+
+    ${polygonData.points.map((point, index) => {
+      const geo = geographicPoints[index]
+      return `<Placemark>
+      <name></name>
+      <description>Vértice ${index + 1}: ${point.label} - UTM: ${point.x.toLocaleString()}, ${point.y.toLocaleString()} (${point.zone})</description>
+      <styleUrl>#vertexStyle</styleUrl>
+      <Point>
+        <coordinates>${geo.lng},${geo.lat},0</coordinates>
+      </Point>
+    </Placemark>`
+    }).join('\n    ')}
+
+  </Document>
+</kml>`
+
+      // Crear el blob y descargar
+      const blob = new Blob([kmlContent], { type: 'application/vnd.google-earth.kml+xml' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `poligono-senpa-${new Date().toISOString().split('T')[0]}.kml`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+
+      console.log('✅ Archivo KML descargado exitosamente')
+    } catch (error) {
+      console.error('Error generando KML:', error)
+      alert('Error al generar el archivo KML: ' + (error instanceof Error ? error.message : 'Error desconocido'))
+    }
+  }
+
   const getUserLocation = () => {
     setIsLoadingLocation(true)
     setLocationError(null)
@@ -276,12 +390,20 @@ const PolygonMapView = ({ polygonData, onNewPolygon }: PolygonMapViewProps) => {
               {polygonData.points.length} vértices definidos con coordenadas UTM
             </p>
           </div>
-          <button
-            onClick={onNewPolygon}
-            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-          >
-            🆕 Nuevo Polígono
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={downloadKML}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Descargar KML
+            </button>
+            <button
+              onClick={onNewPolygon}
+              className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+            >
+              Nuevo Polígono
+            </button>
+          </div>
         </div>
 
         {/* Estado de ubicación del usuario */}
