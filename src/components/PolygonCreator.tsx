@@ -10,7 +10,7 @@ interface PolygonCreatorProps {
 
 const PolygonCreator = ({ onPolygonCreate }: PolygonCreatorProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const selectedModel = 'openai/gpt-4o'
+  const selectedModel = 'anthropic/claude-3.5-sonnet'
 
   const handleFileAnalysis = async (files: File[]) => {
     setIsAnalyzing(true)

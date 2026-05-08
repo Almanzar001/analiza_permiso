@@ -16,7 +16,7 @@ function App() {
   const [polygonData, setPolygonData] = useState<PolygonData | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisType, setAnalysisType] = useState<AnalysisType>('location')
-  const selectedModel = 'openai/gpt-4o'
+  const selectedModel = 'anthropic/claude-3.5-sonnet'
 
   const handleFileAnalysis = async (files: File[]) => {
     setIsAnalyzing(true)
