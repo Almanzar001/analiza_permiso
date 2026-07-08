@@ -10,7 +10,7 @@ interface PolygonCreatorProps {
 
 const PolygonCreator = ({ onPolygonCreate }: PolygonCreatorProps) => {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
-  const selectedModel = 'anthropic/claude-3.5-sonnet'
+  const selectedModel = 'google/gemini-2.5-flash'
 
   const handleFileAnalysis = async (files: File[]) => {
     setIsAnalyzing(true)

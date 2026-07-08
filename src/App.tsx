@@ -16,7 +16,7 @@ function App() {
   const [polygonData, setPolygonData] = useState<PolygonData | null>(null)
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [analysisType, setAnalysisType] = useState<AnalysisType>('location')
-  const selectedModel = 'anthropic/claude-3.5-sonnet'
+  const selectedModel = 'google/gemini-2.5-flash'
 
   const handleFileAnalysis = async (files: File[]) => {
     setIsAnalyzing(true)
