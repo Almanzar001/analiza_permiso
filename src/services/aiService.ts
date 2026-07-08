@@ -19,6 +19,27 @@ interface PolygonAnalysisResponse {
     permit_type: string
     authority: string
   }
+  usage?: TokenUsage
+}
+
+interface TokenUsage {
+  promptTokens: number
+  completionTokens: number
+  totalTokens: number
+}
+
+type AIServiceErrorType = 'INSUFFICIENT_CREDITS' | 'IMAGE_QUALITY' | 'NO_POINTS' | 'INVALID_RESPONSE' | 'UNKNOWN'
+
+class AIServiceError extends Error {
+  type: AIServiceErrorType
+  usage?: TokenUsage
+
+  constructor(message: string, type: AIServiceErrorType, usage?: TokenUsage) {
+    super(message)
+    this.name = 'AIServiceError'
+    this.type = type
+    this.usage = usage
+  }
 }
 
 interface ModelOption {
@@ -35,6 +56,36 @@ class AIService {
   // Requests go through our own backend proxy (/api/openrouter/*), which holds
   // the OpenRouter key server-side. The browser never sees the API key.
   private baseURL = '/api/openrouter'
+
+  private extractUsage(data: any): TokenUsage | undefined {
+    const usage = data?.usage
+    if (!usage) return undefined
+    return {
+      promptTokens: usage.prompt_tokens ?? 0,
+      completionTokens: usage.completion_tokens ?? 0,
+      totalTokens: usage.total_tokens ?? (usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0)
+    }
+  }
+
+  private buildUpstreamError(status: number, errorText: string): AIServiceError {
+    let message = errorText
+    try {
+      const parsed = JSON.parse(errorText)
+      message = parsed?.error?.message || message
+    } catch {
+      // errorText wasn't JSON — use the raw text as the message
+    }
+
+    const looksLikeNoCredits = status === 402 || /credit|insufficient|balance|quota|afford/i.test(message)
+    if (looksLikeNoCredits) {
+      return new AIServiceError(
+        `Sin créditos disponibles en la cuenta de OpenRouter: ${message}`,
+        'INSUFFICIENT_CREDITS'
+      )
+    }
+
+    return new AIServiceError(`OpenRouter API error: ${status} - ${errorText}`, 'UNKNOWN')
+  }
 
   // Available models on OpenRouter for document analysis
   getAvailableModels(): ModelOption[] {
@@ -819,7 +870,7 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
 
   async analyzePolygonDocument(file: File, selectedModel = 'openai/gpt-4o'): Promise<PolygonAnalysisResponse> {
     let content: any
-    
+
     try {
       if (file.type === 'application/pdf') {
         content = await this.extractPDFText(file)
@@ -846,9 +897,9 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
         frequency_penalty: 0,
         presence_penalty: 0
       }
-      
+
       console.log('Request body (polígono):', JSON.stringify(requestBody, null, 2))
-      
+
       const response = await fetch(`${this.baseURL}/chat-completions`, {
         method: 'POST',
         headers: {
@@ -858,23 +909,24 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
         },
         body: JSON.stringify(requestBody)
       })
-      
+
       console.log('Response status (polígono):', response.status)
 
       if (!response.ok) {
         const errorText = await response.text()
         console.error('OpenRouter error response (polígono):', errorText)
-        throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`)
+        throw this.buildUpstreamError(response.status, errorText)
       }
 
       const data = await response.json()
       console.log('Full OpenRouter response (polígono):', data)
-      
+
+      const usage = this.extractUsage(data)
       const result = data.choices?.[0]?.message?.content
 
       if (!result) {
         console.error('No content in response. Full data:', data)
-        throw new Error('No response from AI service')
+        throw new AIServiceError('No response from AI service', 'INVALID_RESPONSE', usage)
       }
 
       console.log('AI Raw Response (polígono):', result)
@@ -882,23 +934,27 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
       try {
         // Clean the response - remove markdown formatting if present
         let cleanResult = result.trim()
-        
+
         if (cleanResult.startsWith('```json')) {
           cleanResult = cleanResult.replace(/^```json\s*/, '').replace(/\s*```$/, '')
         } else if (cleanResult.startsWith('```')) {
           cleanResult = cleanResult.replace(/^```\s*/, '').replace(/\s*```$/, '')
         }
-        
+
         console.log('Cleaned result (polígono):', cleanResult)
-        
+
         const parsedResult = JSON.parse(cleanResult) as PolygonAnalysisResponse
-        
+
         // Validate that polygon points were found
         if (!parsedResult.polygon_points || parsedResult.polygon_points.length < 3) {
           console.warn('⚠️ No se encontraron suficientes puntos para crear un polígono')
-          throw new Error('No se encontraron suficientes coordenadas para crear un polígono (mínimo 3 puntos). Verifica que el documento contenga múltiples coordenadas UTM de los vértices del área.')
+          throw new AIServiceError(
+            'No se encontraron suficientes coordenadas para crear un polígono (mínimo 3 puntos). Verifica que el documento contenga múltiples coordenadas UTM de los vértices del área.',
+            'NO_POINTS',
+            usage
+          )
         }
-        
+
         console.log('AI Parsed Result (polígono):', parsedResult)
 
         // Log específico para puntos del polígono
@@ -907,24 +963,36 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
           console.log(`  - Punto ${index + 1}/${parsedResult.polygon_points.length}: X=${point.x}, Y=${point.y}, Zona=${point.zone}, Label=${point.label}`)
         })
 
-        return parsedResult
+        return { ...parsedResult, usage }
       } catch (parseError) {
+        if (parseError instanceof AIServiceError) throw parseError
+
         console.error('JSON Parse Error (polígono):', parseError)
         console.error('Raw result that failed to parse:', result)
-        
+
         // Check if the AI response indicates it couldn't read the document
-        if (result.toLowerCase().includes('no puedo leer') || 
+        if (result.toLowerCase().includes('no puedo leer') ||
             result.toLowerCase().includes('no se puede leer') ||
             result.toLowerCase().includes('imagen no clara') ||
             result.toLowerCase().includes('documento ilegible')) {
-          throw new Error('El documento no se puede leer claramente. Verifica que la imagen sea nítida, bien iluminada y que el texto sea legible.')
+          throw new AIServiceError(
+            'El documento no se puede leer claramente. Verifica que la imagen sea nítida, bien iluminada y que el texto sea legible.',
+            'IMAGE_QUALITY',
+            usage
+          )
         }
-        
-        throw new Error('La IA no pudo procesar las coordenadas del polígono correctamente. Verifica que sea un permiso ambiental válido con múltiples coordenadas UTM visibles.')
+
+        throw new AIServiceError(
+          'La IA no pudo procesar las coordenadas del polígono correctamente. Verifica que sea un permiso ambiental válido con múltiples coordenadas UTM visibles.',
+          'INVALID_RESPONSE',
+          usage
+        )
       }
     } catch (error) {
+      if (error instanceof AIServiceError) throw error
+
       console.error('Error calling OpenRouter (polígono):', error)
-      throw new Error('Error analyzing polygon document with AI')
+      throw new AIServiceError('Error analyzing polygon document with AI', 'UNKNOWN')
     }
   }
 
@@ -1057,4 +1125,5 @@ interface DateAnalysisResponse {
 }
 
 export default AIService
-export type { PermitAnalysisResponse, ModelOption, DateAnalysisResponse, PolygonAnalysisResponse }
+export { AIServiceError }
+export type { PermitAnalysisResponse, ModelOption, DateAnalysisResponse, PolygonAnalysisResponse, TokenUsage }
