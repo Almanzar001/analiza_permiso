@@ -45,4 +45,5 @@ app.get('*', (_req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor escuchando en el puerto ${PORT}`)
+  console.log(`OPENROUTER_API_KEY detectada: ${OPENROUTER_API_KEY ? 'sí (' + OPENROUTER_API_KEY.slice(0, 10) + '...)' : 'NO — falta configurarla en el entorno'}`)
 })
