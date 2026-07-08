@@ -37,9 +37,26 @@ app.post('/api/openrouter/chat-completions', async (req, res) => {
 })
 
 const distPath = path.join(__dirname, 'dist')
-app.use(express.static(distPath))
+app.use(express.static(distPath, {
+  setHeaders: (res, filePath) => {
+    // Never let the browser/CDN cache index.html: it references hashed asset
+    // filenames that change on every deploy, so a stale cached copy points
+    // at JS/CSS files that no longer exist after a redeploy.
+    if (path.basename(filePath) === 'index.html') {
+      res.setHeader('Cache-Control', 'no-store')
+    }
+  }
+}))
 
-app.get('*', (_req, res) => {
+app.get('*', (req, res) => {
+  // A request for a real file (e.g. /assets/index-XXXX.js, /icon-192.png)
+  // that express.static didn't find is a genuine 404 — serving index.html
+  // for it makes the browser choke on the wrong MIME type. Only fall back
+  // to the SPA shell for actual client-side routes (no file extension).
+  if (path.extname(req.path)) {
+    return res.status(404).end()
+  }
+  res.set('Cache-Control', 'no-store')
   res.sendFile(path.join(distPath, 'index.html'))
 })
 
