@@ -66,19 +66,22 @@ npm install
 # Copiar el archivo de ejemplo
 cp .env.example .env
 
-# Editar .env y agregar tu API key
-VITE_OPENROUTER_API_KEY=tu_api_key_de_openrouter
+# Editar .env y agregar tu API key (SIN prefijo VITE_: la usa solo el servidor)
+OPENROUTER_API_KEY=tu_api_key_de_openrouter
 ```
 
 ### 4. Ejecutar en desarrollo
+La app llama a OpenRouter a través de un backend propio (`server.js`) que guarda
+la API key del lado del servidor. Corre ambos procesos en paralelo:
 ```bash
-npm run dev
+npm run dev        # Vite en el puerto 3000
+npm run start:api  # server.js en el puerto 8787 (proxy hacia OpenRouter)
 ```
 
 ### 5. Construir para producción
 ```bash
 npm run build
-npm run preview
+npm start   # levanta server.js: sirve dist/ y expone /api/openrouter/*
 ```
 
 ## 🎮 Uso
@@ -129,13 +132,18 @@ Esta aplicación está específicamente optimizada para permisos del:
 
 ### Variables de Entorno
 ```bash
-# Requerido
-VITE_OPENROUTER_API_KEY=sk-or-v1-xxxxx
+# Requerido (SOLO servidor, nunca prefijo VITE_)
+OPENROUTER_API_KEY=sk-or-v1-xxxxx
 
-# Opcional
-VITE_APP_NAME=Analiza Permiso SENPA
-VITE_APP_VERSION=1.0.0
+# Opcional (frontend)
+VITE_APP_TITLE=Analiza Permiso SENPA
 ```
+
+> ⚠️ `OPENROUTER_API_KEY` nunca debe llevar el prefijo `VITE_`. Vite incrusta
+> cualquier variable `VITE_*` en el bundle del navegador, dejándola visible
+> para cualquiera que inspeccione el JS. La app llama a OpenRouter a través
+> de `server.js`, que reenvía la petición añadiendo la key desde el entorno
+> del servidor.
 
 ### Modelos IA Soportados
 - `meta-llama/llama-3.2-90b-vision-instruct` (Recomendado)

@@ -37,7 +37,7 @@ const PolygonCreator = ({ onPolygonCreate }: PolygonCreatorProps) => {
         
         if (error.message.includes('API key not configured')) {
           suggestions.push('❌ Falta configurar la API Key de OpenRouter')
-          suggestions.push('💡 Agrega VITE_OPENROUTER_API_KEY en un archivo .env')
+          suggestions.push('💡 Contacta al administrador: falta configurar OPENROUTER_API_KEY en el servidor')
         } else if (error.message.includes('OpenRouter API error')) {
           suggestions.push('❌ Error en la API de OpenRouter')
           suggestions.push('💡 Verifica tu API Key y saldo')

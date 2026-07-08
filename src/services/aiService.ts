@@ -32,12 +32,9 @@ interface ModelOption {
 }
 
 class AIService {
-  private apiKey: string | null = null
-  private baseURL = 'https://openrouter.ai/api/v1'
-
-  constructor() {
-    this.apiKey = import.meta.env.VITE_OPENROUTER_API_KEY || null
-  }
+  // Requests go through our own backend proxy (/api/openrouter/*), which holds
+  // the OpenRouter key server-side. The browser never sees the API key.
+  private baseURL = '/api/openrouter'
 
   // Available models on OpenRouter for document analysis
   getAvailableModels(): ModelOption[] {
@@ -70,10 +67,6 @@ class AIService {
   }
 
   async analyzePermitDocument(file: File, selectedModel = 'openai/gpt-4o'): Promise<PermitAnalysisResponse> {
-    if (!this.apiKey) {
-      throw new Error('OpenRouter API key not configured')
-    }
-
     let content: any
     
     try {
@@ -91,7 +84,6 @@ class AIService {
 
     console.log('🚀 Enviando request a OpenRouter...')
     console.log('Model:', selectedModel)
-    console.log('API Key presente:', !!this.apiKey)
     
     try {
       const requestBody = {
@@ -106,11 +98,10 @@ class AIService {
       
       console.log('Request body:', JSON.stringify(requestBody, null, 2))
       
-      const response = await fetch(`${this.baseURL}/chat/completions`, {
+      const response = await fetch(`${this.baseURL}/chat-completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
           'HTTP-Referer': window.location.origin,
           'X-Title': 'Analiza Permiso App'
         },
@@ -263,10 +254,6 @@ class AIService {
   }
 
   async analyzeMultipleFiles(files: File[], selectedModel = 'openai/gpt-4o'): Promise<PermitAnalysisResponse> {
-    if (!this.apiKey) {
-      throw new Error('OpenRouter API key not configured')
-    }
-
     // Process all files and create a comprehensive message
     const fileContents: Array<{content: string, type: string, name: string}> = []
     
@@ -293,7 +280,6 @@ class AIService {
 
     console.log('🚀 Enviando request a OpenRouter (múltiples archivos)...')
     console.log('Model:', selectedModel)
-    console.log('API Key presente:', !!this.apiKey)
     console.log('Number of files:', fileContents.length)
     
     try {
@@ -309,11 +295,10 @@ class AIService {
       
       console.log('Request body (múltiples archivos):', JSON.stringify(requestBody, null, 2))
       
-      const response = await fetch(`${this.baseURL}/chat/completions`, {
+      const response = await fetch(`${this.baseURL}/chat-completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
           'HTTP-Referer': window.location.origin,
           'X-Title': 'Analiza Permiso App'
         },
@@ -591,10 +576,6 @@ PRIORIDAD: Precisión en fechas (crítico para vigencia del permiso)`
   }
 
   async analyzeDateDocument(file: File, selectedModel = 'openai/gpt-4o'): Promise<DateAnalysisResponse> {
-    if (!this.apiKey) {
-      throw new Error('OpenRouter API key not configured')
-    }
-
     let content: any
     
     try {
@@ -612,7 +593,6 @@ PRIORIDAD: Precisión en fechas (crítico para vigencia del permiso)`
 
     console.log('🚀 Enviando request para análisis de fechas a OpenRouter...')
     console.log('Model:', selectedModel)
-    console.log('API Key presente:', !!this.apiKey)
     
     try {
       const requestBody = {
@@ -627,11 +607,10 @@ PRIORIDAD: Precisión en fechas (crítico para vigencia del permiso)`
       
       console.log('Request body (fechas):', JSON.stringify(requestBody, null, 2))
       
-      const response = await fetch(`${this.baseURL}/chat/completions`, {
+      const response = await fetch(`${this.baseURL}/chat-completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
           'HTTP-Referer': window.location.origin,
           'X-Title': 'Analiza Permiso App'
         },
@@ -839,10 +818,6 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
   }
 
   async analyzePolygonDocument(file: File, selectedModel = 'openai/gpt-4o'): Promise<PolygonAnalysisResponse> {
-    if (!this.apiKey) {
-      throw new Error('OpenRouter API key not configured')
-    }
-
     let content: any
     
     try {
@@ -860,7 +835,6 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
 
     console.log('🚀 Enviando request para análisis de polígono a OpenRouter...')
     console.log('Model:', selectedModel)
-    console.log('API Key presente:', !!this.apiKey)
 
     try {
       const requestBody = {
@@ -875,11 +849,10 @@ FORMATO: Fechas YYYY-MM-DD, números directos (no strings para days), null para 
       
       console.log('Request body (polígono):', JSON.stringify(requestBody, null, 2))
       
-      const response = await fetch(`${this.baseURL}/chat/completions`, {
+      const response = await fetch(`${this.baseURL}/chat-completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json',
+            'Content-Type': 'application/json',
           'HTTP-Referer': window.location.origin,
           'X-Title': 'Analiza Permiso App'
         },

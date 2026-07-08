@@ -6,7 +6,11 @@ export default defineConfig({
   server: {
     port: 3000,
     open: true,
-    host: '0.0.0.0'
+    host: '0.0.0.0',
+    proxy: {
+      // In dev, run `npm run start:api` (server.js on PORT=8787) alongside `npm run dev`.
+      '/api': 'http://localhost:8787'
+    }
   },
   preview: {
     port: 4173,
